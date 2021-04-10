@@ -16,7 +16,7 @@ public class CognitoClient {
     private String CUSTOMDOMAIN;
     private String REGION;
 
-    final public static String REDIRECT_URL = "https://sid343.reinvent-workshop.com";
+    final public static String REDIRECT_URL = "https://developer.expert.ai";
 
     public CognitoClient() {
 
@@ -75,12 +75,13 @@ public class CognitoClient {
              System.out.println("User is authenticated: " + result);
          } else {
              System.out.println("Username/password is invalid.");
+             System.exit(1);
          }
 
          JSONObject payload = JWTUtils.getPayload(result);
-     //    String provider = payload.get("iss").toString().replace("https://", "");
+         //String provider = payload.get("iss").toString().replace("https://", "");
 
-        // Credentials credentials = helper.GetCredentials(provider, result);
+         //Credentials credentials = helper.GetCredentials(provider, result);
        //  ListBuckets(credentials);
 
      }
