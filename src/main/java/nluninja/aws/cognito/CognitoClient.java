@@ -77,7 +77,7 @@ public class CognitoClient {
              System.out.println("Username/password is invalid.");
          }
 
-         JSONObject payload = CognitoJWTParser.getPayload(result);
+         JSONObject payload = JWTUtils.getPayload(result);
      //    String provider = payload.get("iss").toString().replace("https://", "");
 
         // Credentials credentials = helper.GetCredentials(provider, result);
@@ -89,8 +89,4 @@ public class CognitoClient {
         AuthenticationManager helper = new AuthenticationManager(POOL_ID, CLIENTAPP_ID, CLIENT_SECRET);
         return helper.PerformSRPAuthentication(username, password);
     }
-
-    }
-
-
 }

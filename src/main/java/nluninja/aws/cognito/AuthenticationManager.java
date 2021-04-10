@@ -1,14 +1,11 @@
 package nluninja.aws.cognito;
 
-import com.amazonaws.auth.AWSStaticCredentialsProvider;
-import com.amazonaws.auth.AnonymousAWSCredentials;
-import com.amazonaws.regions.Regions;
-import com.amazonaws.util.Base64;
-import com.amazonaws.util.StringUtils;
-import com.amazonaws.services.cognitoidp.AWSCognitoIdentityProvider;
-import com.amazonaws.services.cognitoidp.AWSCognitoIdentityProviderClientBuilder;
-import com.amazonaws.services.cognitoidp.model.*;
-
+import software.amazon.awssdk.auth.credentials.AnonymousCredentialsProvider;
+import software.amazon.awssdk.auth.credentials.AwsCredentials;
+import software.amazon.awssdk.regions.Region;
+import software.amazon.awssdk.services.cognitoidentityprovider.CognitoIdentityProviderClient;
+import software.amazon.awssdk.services.cognitoidentityprovider.CognitoIdentityProviderClientBuilder;
+import software.amazon.awssdk.services.cognitoidentityprovider.model.*;
 
 import javax.crypto.Mac;
 import javax.crypto.SecretKey;
@@ -21,6 +18,7 @@ import java.nio.charset.StandardCharsets;
 import java.security.*;
 import java.text.SimpleDateFormat;
 import java.util.*;
+
 
 /**
  * Private class for SRP client side math.
@@ -48,7 +46,7 @@ class AuthenticationManager {
     private static final BigInteger k;
     private static final int EPHEMERAL_KEY_LENGTH = 1024;
     private static final int DERIVED_KEY_SIZE = 16;
-    private static final String DERIVED_KEY_INFO = "Caldera Derived Key";
+    private static final String DERIVED_KEY_INFO = "nluninja Key";
     private static final ThreadLocal<MessageDigest> THREAD_MESSAGE_DIGEST =
             new ThreadLocal<MessageDigest>() {
                 @Override
@@ -139,10 +137,10 @@ class AuthenticationManager {
 
         // x = H(salt | H(poolName | userId | ":" | password))
         messageDigest.reset();
-        messageDigest.update(this.userPoolID.split("_", 2)[1].getBytes(StringUtils.UTF8));
-        messageDigest.update(userId.getBytes(StringUtils.UTF8));
-        messageDigest.update(":".getBytes(StringUtils.UTF8));
-        byte[] userIdHash = messageDigest.digest(userPassword.getBytes(StringUtils.UTF8));
+        messageDigest.update(this.userPoolID.split("_", 2)[1].getBytes(StandardCharsets.UTF_8));
+        messageDigest.update(userId.getBytes(StandardCharsets.UTF_8));
+        messageDigest.update(":".getBytes(StandardCharsets.UTF_8));
+        byte[] userIdHash = messageDigest.digest(userPassword.getBytes(StandardCharsets.UTF_8));
 
         messageDigest.reset();
         messageDigest.update(salt.toByteArray());
@@ -166,20 +164,20 @@ class AuthenticationManager {
 
         InitiateAuthRequest initiateAuthRequest = initiateUserSrpAuthRequest(username);
         try {
-            AnonymousAWSCredentials awsCreds = new AnonymousAWSCredentials();
-            AWSCognitoIdentityProvider cognitoIdentityProvider = AWSCognitoIdentityProviderClientBuilder
-                    .standard()
-                    .withCredentials(new AWSStaticCredentialsProvider(awsCreds))
-                    .withRegion(Regions.fromName(this.region))
-                    .build();
-            InitiateAuthResult initiateAuthResult = cognitoIdentityProvider.initiateAuth(initiateAuthRequest);
-            if (ChallengeNameType.PASSWORD_VERIFIER.toString().equals(initiateAuthResult.getChallengeName())) {
+
+            CognitoIdentityProviderClientBuilder builder =  CognitoIdentityProviderClient.builder();
+            builder.region(Region.of(this.region));
+            builder.credentialsProvider(AnonymousCredentialsProvider.create());
+
+            CognitoIdentityProviderClient cognitoIdentityProvider = builder.build();
+
+            InitiateAuthResponse initiateAuthResult = cognitoIdentityProvider.initiateAuth(initiateAuthRequest);
+            if (ChallengeNameType.PASSWORD_VERIFIER.toString().equals(initiateAuthResult.challengeName())) {
                 RespondToAuthChallengeRequest challengeRequest = userSrpAuthRequest(initiateAuthResult, password,
-                        initiateAuthRequest.getAuthParameters().get("SECRET_HASH"));
-                RespondToAuthChallengeResult result = cognitoIdentityProvider.respondToAuthChallenge(challengeRequest);
-                //System.out.println(result);
-                System.out.println(CognitoJWTParser.getPayload(result.getAuthenticationResult().getIdToken()));
-                authresult = result.getAuthenticationResult().getIdToken();
+                        initiateAuthRequest.authParameters().get("SECRET_HASH"));
+                RespondToAuthChallengeResponse response = cognitoIdentityProvider.respondToAuthChallenge(challengeRequest);
+                System.out.println(JWTUtils.getPayload(response.authenticationResult().idToken()));
+                authresult = response.authenticationResult().idToken();
             }
         } catch (final Exception ex) {
             System.out.println("Exception" + ex);
@@ -195,17 +193,18 @@ class AuthenticationManager {
      * @return the Authentication request.
      */
     private InitiateAuthRequest initiateUserSrpAuthRequest(String username) {
-
-        InitiateAuthRequest initiateAuthRequest = new InitiateAuthRequest();
-        initiateAuthRequest.setAuthFlow(AuthFlowType.USER_SRP_AUTH);
-        initiateAuthRequest.setClientId(this.clientId);
-        //Only to be used if the pool contains the secret key.
+        InitiateAuthRequest.Builder builder = InitiateAuthRequest.builder();
+        builder.authFlow(AuthFlowType.USER_SRP_AUTH);
+        builder.clientId(this.clientId);
+        Map <String, String > params = new HashMap<>();
         if (secretKey != null && !secretKey.isEmpty()) {
-            initiateAuthRequest.addAuthParametersEntry("SECRET_HASH", calculateSecretHash(clientId, secretKey, username));
+            params.put("SECRET_HASH", calculateSecretHash(clientId, secretKey, username));
         }
-        initiateAuthRequest.addAuthParametersEntry("USERNAME", username);
-        initiateAuthRequest.addAuthParametersEntry("SRP_A", this.getA().toString(16));
-        return initiateAuthRequest;
+        params.put("USERNAME", username);
+        params.put("SRP_A", this.getA().toString(16));
+
+        builder.authParameters(params);
+        return builder.build();
     }
 
 
@@ -216,18 +215,18 @@ class AuthenticationManager {
      * @param password  The password to be used to respond to the authentication challenge.
      * @return the Request created for the previous authentication challenge.
      */
-    private RespondToAuthChallengeRequest userSrpAuthRequest(InitiateAuthResult challenge,
+    private RespondToAuthChallengeRequest userSrpAuthRequest(InitiateAuthResponse challenge,
                                                              String password, String secretHash
     ) {
-        String userIdForSRP = challenge.getChallengeParameters().get("USER_ID_FOR_SRP");
-        String usernameInternal = challenge.getChallengeParameters().get("USERNAME");
+        String userIdForSRP = challenge.challengeParameters().get("USER_ID_FOR_SRP");
+        String usernameInternal = challenge.challengeParameters().get("USERNAME");
 
-        BigInteger B = new BigInteger(challenge.getChallengeParameters().get("SRP_B"), 16);
-        if (B.mod(AuthenticationHelper.N).equals(BigInteger.ZERO)) {
+        BigInteger B = new BigInteger(challenge.challengeParameters().get("SRP_B"), 16);
+        if (B.mod(AuthenticationManager.N).equals(BigInteger.ZERO)) {
             throw new SecurityException("SRP error, B cannot be zero");
         }
 
-        BigInteger salt = new BigInteger(challenge.getChallengeParameters().get("SALT"), 16);
+        BigInteger salt = new BigInteger(challenge.challengeParameters().get("SALT"), 16);
         byte[] key = getPasswordAuthenticationKey(userIdForSRP, password, B, salt);
 
         Date timestamp = new Date();
@@ -236,14 +235,14 @@ class AuthenticationManager {
             Mac mac = Mac.getInstance("HmacSHA256");
             SecretKeySpec keySpec = new SecretKeySpec(key, "HmacSHA256");
             mac.init(keySpec);
-            mac.update(this.userPoolID.split("_", 2)[1].getBytes(StringUtils.UTF8));
-            mac.update(userIdForSRP.getBytes(StringUtils.UTF8));
-            byte[] secretBlock = Base64.decode(challenge.getChallengeParameters().get("SECRET_BLOCK"));
+            mac.update(this.userPoolID.split("_", 2)[1].getBytes(StandardCharsets.UTF_8));
+            mac.update(userIdForSRP.getBytes(StandardCharsets.UTF_8));
+            byte[] secretBlock = Base64.getDecoder().decode(challenge.challengeParameters().get("SECRET_BLOCK"));
             mac.update(secretBlock);
             SimpleDateFormat simpleDateFormat = new SimpleDateFormat("EEE MMM d HH:mm:ss z yyyy", Locale.US);
             simpleDateFormat.setTimeZone(new SimpleTimeZone(SimpleTimeZone.UTC_TIME, "UTC"));
             String dateString = simpleDateFormat.format(timestamp);
-            byte[] dateBytes = dateString.getBytes(StringUtils.UTF8);
+            byte[] dateBytes = dateString.getBytes(StandardCharsets.UTF_8);
             hmac = mac.doFinal(dateBytes);
         } catch (Exception e) {
             System.out.println(e);
@@ -253,21 +252,21 @@ class AuthenticationManager {
         formatTimestamp.setTimeZone(new SimpleTimeZone(SimpleTimeZone.UTC_TIME, "UTC"));
 
         Map<String, String> srpAuthResponses = new HashMap<>();
-        srpAuthResponses.put("PASSWORD_CLAIM_SECRET_BLOCK", challenge.getChallengeParameters().get("SECRET_BLOCK"));
-        srpAuthResponses.put("PASSWORD_CLAIM_SIGNATURE", new String(Base64.encode(hmac), StringUtils.UTF8));
+        srpAuthResponses.put("PASSWORD_CLAIM_SECRET_BLOCK", challenge.challengeParameters().get("SECRET_BLOCK"));
+        srpAuthResponses.put("PASSWORD_CLAIM_SIGNATURE", new String(Base64.getEncoder().encode(hmac), StandardCharsets.UTF_8));
         srpAuthResponses.put("TIMESTAMP", formatTimestamp.format(timestamp));
         srpAuthResponses.put("USERNAME", usernameInternal);
         if (secretHash != null && !secretHash.isEmpty()) {
             srpAuthResponses.put("SECRET_HASH", secretHash);
         }
 
-        RespondToAuthChallengeRequest authChallengeRequest = new RespondToAuthChallengeRequest();
-        authChallengeRequest.setChallengeName(challenge.getChallengeName());
-        authChallengeRequest.setClientId(clientId);
-        authChallengeRequest.setSession(challenge.getSession());
-        authChallengeRequest.setChallengeResponses(srpAuthResponses);
+        RespondToAuthChallengeRequest.Builder requestBuilder = RespondToAuthChallengeRequest.builder();
+        requestBuilder.challengeName(challenge.challengeName());
+        requestBuilder.clientId(clientId);
+        requestBuilder.session(challenge.session());
+        requestBuilder.challengeResponses(srpAuthResponses);
 
-        return authChallengeRequest;
+        return requestBuilder.build();
     }
 
     /**
@@ -377,7 +376,7 @@ class AuthenticationManager {
          * @return converted bytes.
          */
         private byte[] deriveKey(String info, int length) {
-            return this.deriveKey(info != null ? info.getBytes(StringUtils.UTF8) : null, length);
+            return this.deriveKey(info != null ? info.getBytes(StandardCharsets.UTF_8) : null, length);
         }
 
         /**

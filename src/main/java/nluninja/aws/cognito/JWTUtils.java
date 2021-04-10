@@ -1,7 +1,5 @@
 package nluninja.aws.cognito;
 import java.util.Base64;
-import java.util.Base64.Encoder;
-import java.util.Base64.Decoder;
 import org.json.JSONObject;
 
 import java.io.UnsupportedEncodingException;
