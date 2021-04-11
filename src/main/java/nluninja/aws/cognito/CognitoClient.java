@@ -62,27 +62,48 @@ public class CognitoClient {
 
          CognitoClient client = new CognitoClient();
 
-         System.out.println("Cognito Sample Login App");
+         System.out.println("Welcome to the Cognito Simple App. Please enter your choice (1 or 2).\n" +
+                 "1. Add a new user\n" +
+                 "2. Authenticate a user and display its buckets\n" +
+                 "");
+         int choice = 0;
 
-         System.out.println("Please enter the username: ");
-         String username = scanner.nextLine();
-
-         System.out.println("Please enter the password: ");
-         String password = scanner.nextLine();
-
-         String result = client.validate(username, password);
-         if (result != null) {
-             System.out.println("User is authenticated: " + result);
-         } else {
-             System.out.println("Username/password is invalid.");
+         try {
+             choice = Integer.parseInt(scanner.nextLine());
+         } catch (NumberFormatException exp) {
+             System.out.println("Please enter a choice (1, 2).");
              System.exit(1);
          }
+         switch (choice) {
+             case 1:
+                 CreateUser(helper);
+                 break;
+             case 2:
+                 System.out.println("Please enter the username: ");
+                 String username = scanner.nextLine();
+                 System.out.println("Please enter the password: ");
+                 String password = scanner.nextLine();
+                 String result = client.validate(username, password);
+                 if (result != null) {
+                     System.out.println("User is authenticated: " + result);
+                 } else {
+                     System.out.println("Username/password is invalid.");
+                     System.exit(1);
+                 }
+                 JSONObject payload = JWTUtils.getPayload(result);
 
-         JSONObject payload = JWTUtils.getPayload(result);
-         //String provider = payload.get("iss").toString().replace("https://", "");
+                 //String provider = payload.get("iss").toString().replace("https://", "");
 
-         //Credentials credentials = helper.GetCredentials(provider, result);
-       //  ListBuckets(credentials);
+                 //Credentials credentials = helper.GetCredentials(provider, result);
+                 //  ListBuckets(credentials);
+                 break;
+             default:
+                 System.out.println("Valid choices are 1 and 2");
+         }
+
+
+
+
 
      }
 
