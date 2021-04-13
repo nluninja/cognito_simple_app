@@ -5,8 +5,7 @@ import software.amazon.awssdk.auth.credentials.AnonymousCredentialsProvider;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.cognitoidentityprovider.CognitoIdentityProviderClient;
 import software.amazon.awssdk.services.cognitoidentityprovider.CognitoIdentityProviderClientBuilder;
-import software.amazon.awssdk.services.cognitoidentityprovider.model.AttributeType;
-import software.amazon.awssdk.services.cognitoidentityprovider.model.SignUpRequest;
+import software.amazon.awssdk.services.cognitoidentityprovider.model.*;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -70,20 +69,24 @@ public class CognitoClient {
          Scanner scanner = new Scanner(System.in);
 
          CognitoClient client = new CognitoClient();
+
+         while (true){
          String username, password, email, phonenumber = "";
 
-         System.out.println("Welcome to the Cognito Simple App. Please enter your choice (1 or 2).\n" +
+         System.out.println("Welcome to the Cognito Simple App. Please enter your choice (1, 2, 0).\n" +
                  "1. Add a new user\n" +
                  "2. Authenticate a user and display its buckets\n" +
+                 "0. Exit\n" +
                  "");
          int choice = 0;
 
          try {
              choice = Integer.parseInt(scanner.nextLine());
          } catch (NumberFormatException exp) {
-             System.out.println("Please enter a choice (1, 2).");
+             System.out.println("Please enter a choice (1, 2, 0).");
              System.exit(1);
          }
+
          switch (choice) {
              case 1:
 
@@ -109,6 +112,7 @@ public class CognitoClient {
                      System.out.println("User verification succeeded.");
                  } else {
                      System.out.println("User creation failed.");
+                     continue;
                  }
                  break;
              case 2:
@@ -121,7 +125,6 @@ public class CognitoClient {
                      System.out.println("User is authenticated: " + result);
                  } else {
                      System.out.println("Username/password is invalid.");
-                     System.exit(1);
                  }
                  JSONObject payload = JWTUtils.getPayload(result);
 
@@ -130,8 +133,14 @@ public class CognitoClient {
                  //Credentials credentials = helper.GetCredentials(provider, result);
                  //  ListBuckets(credentials);
                  break;
+                case 0:
+                    System.out.println("Thank you for being with us.");
+                    System.exit(0);
              default:
                  System.out.println("Valid choices are 1 and 2");
+
+            }
+
          }
 
 
@@ -152,26 +161,25 @@ public class CognitoClient {
 
         CognitoIdentityProviderClient cognitoIdentityProvider = builder.build();
 
-        SignUpRequest signUpRequest = new SignUpRequest();
-        signUpRequest.setClientId(CLIENTAPP_ID);
-        signUpRequest.setUsername(username);
-        signUpRequest.setPassword(password);
+        SignUpRequest.Builder signBuilder = SignUpRequest.builder();
+        signBuilder.clientId(CLIENTAPP_ID);
+        signBuilder.username(username);
+        signBuilder.password(password);
         List<AttributeType> list = new ArrayList<>();
 
-        AttributeType attributeType = new AttributeType();
-        attributeType.setName("phone_number");
-        attributeType.setValue(phonenumber);
-        list.add(attributeType);
+        AttributeType.Builder attrBuilder = AttributeType.builder();
+        attrBuilder.name("phone_number");
+        attrBuilder.value(phonenumber);
+        list.add(attrBuilder.build());
 
-        AttributeType attributeType1 = new AttributeType();
-        attributeType1.setName("email");
-        attributeType1.setValue(email);
-        list.add(attributeType1);
+        attrBuilder.name("email");
+        attrBuilder.value(email);
+        list.add(attrBuilder.build());
 
-        signUpRequest.setUserAttributes(list);
+        signBuilder.userAttributes(list);
 
         try {
-            SignUpResult result = cognitoIdentityProvider.signUp(signUpRequest);
+            SignUpResponse result = cognitoIdentityProvider.signUp(signBuilder.build());
             System.out.println(result);
         } catch (Exception e) {
             System.out.println(e);
@@ -187,17 +195,17 @@ public class CognitoClient {
 
         CognitoIdentityProviderClient cognitoIdentityProvider = builder.build();
 
-        ConfirmSignUpRequest confirmSignUpRequest = new ConfirmSignUpRequest();
-        confirmSignUpRequest.setUsername(username);
-        confirmSignUpRequest.setConfirmationCode(code);
-        confirmSignUpRequest.setClientId(CLIENTAPP_ID);
+        ConfirmSignUpRequest.Builder confirmSignUpRequestbuilder = ConfirmSignUpRequest.builder();
+        confirmSignUpRequestbuilder.username(username);
+        confirmSignUpRequestbuilder.confirmationCode(code);
+        confirmSignUpRequestbuilder.clientId(CLIENTAPP_ID);
 
         System.out.println("username=" + username);
         System.out.println("code=" + code);
         System.out.println("clientid=" + CLIENTAPP_ID);
 
         try {
-            ConfirmSignUpResult confirmSignUpResult = cognitoIdentityProvider.confirmSignUp(confirmSignUpRequest);
+            ConfirmSignUpResponse confirmSignUpResult = cognitoIdentityProvider.confirmSignUp(confirmSignUpRequestbuilder.build());
             System.out.println("confirmSignupResult=" + confirmSignUpResult.toString());
         } catch (Exception ex) {
             System.out.println(ex);
