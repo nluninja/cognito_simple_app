@@ -73,11 +73,11 @@ public class CognitoClient {
          while (true){
          String username, password, email, phonenumber = "";
 
-         System.out.println("Welcome to the Cognito Simple App. Please enter your choice (1, 2, 0).\n" +
+         System.out.println("Welcome to the Cognito Simple App.\n" +
                  "1. Add a new user\n" +
                  "2. Authenticate a user and display its buckets\n" +
                  "0. Exit\n" +
-                 "");
+                 "Please enter your choice (1, 2,0)\n");
          int choice = 0;
 
          try {
