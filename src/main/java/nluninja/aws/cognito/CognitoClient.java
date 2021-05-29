@@ -14,8 +14,12 @@ import java.util.List;
 import java.util.Properties;
 import java.util.Scanner;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class CognitoClient {
+
+    private static final Logger logger = LoggerFactory.getLogger(CognitoClient.class);
 
     private String POOL_ID;
     private String CLIENTAPP_ID;
@@ -46,13 +50,13 @@ public class CognitoClient {
             REGION = prop.getProperty("REGION");
 
         } catch (IOException ex) {
-            ex.printStackTrace();
+            logger.error(ex.getMessage(),ex);
         } finally {
             if (input != null) {
                 try {
                     input.close();
                 } catch (IOException e) {
-                    e.printStackTrace();
+                    logger.error(e.getMessage(),e);
                 }
             }
         }
@@ -77,19 +81,20 @@ public class CognitoClient {
                  "1. Add a new user\n" +
                  "2. Authenticate a user and display its buckets\n" +
                  "0. Exit\n" +
-                 "Please enter your choice (1, 2,0)\n");
+                 "Please enter your choice (1, 2, 0).\n>");
          int choice = 0;
 
          try {
              choice = Integer.parseInt(scanner.nextLine());
          } catch (NumberFormatException exp) {
-             System.out.println("Please enter a choice (1, 2, 0).");
-             System.exit(1);
+             System.out.println("Choice not correct.\nPlease enter a new choice (1, 2, 0).\n>");
+
          }
 
          switch (choice) {
              case 1:
 
+                 System.out.println("User creation");
                  System.out.println("Please enter a username: ");
                  username = scanner.nextLine();
 
@@ -111,7 +116,7 @@ public class CognitoClient {
                      client.checkAccessCode(username, code);
                      System.out.println("User verification succeeded.");
                  } else {
-                     System.out.println("User creation failed.");
+                     System.err.println("User creation failed.");
                      continue;
                  }
                  break;
@@ -124,7 +129,7 @@ public class CognitoClient {
                  if (result != null) {
                      System.out.println("User is authenticated: " + result);
                  } else {
-                     System.out.println("Username/password is invalid.");
+                     System.err.println("Username/password is invalid.");
                  }
                  JSONObject payload = JWTUtils.getPayload(result);
 
@@ -137,7 +142,7 @@ public class CognitoClient {
                     System.out.println("Thank you for being with us.");
                     System.exit(0);
              default:
-                 System.out.println("Valid choices are 1 and 2");
+                 System.err.println("Valid choices are 1 and 2");
 
             }
 
@@ -180,9 +185,10 @@ public class CognitoClient {
 
         try {
             SignUpResponse result = cognitoIdentityProvider.signUp(signBuilder.build());
-            System.out.println(result);
+            logger.info(result.toString());
         } catch (Exception e) {
-            System.out.println(e);
+            logger.error(e.getMessage(),e);
+
             return false;
         }
         return true;
